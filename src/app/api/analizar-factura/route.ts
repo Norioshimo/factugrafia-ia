@@ -142,7 +142,23 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const facturaExtraida = await analizarFacturaConGemini(buffer, mimeType);
+    const modeloSolicitado = formData.get("model")?.toString();
+
+    let facturaExtraida;
+    try {
+      facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, modeloSolicitado);
+    } catch (apiErr: any) {
+      // Si el modelo da 503 por alta demanda o 404, reintentar automáticamente con gemini-2.5-flash-lite o gemini-2.5-flash
+      const errorMsg = apiErr?.message || "";
+      if (errorMsg.includes("503") || errorMsg.includes("UNAVAILABLE") || errorMsg.includes("high demand") || errorMsg.includes("404")) {
+        const fallbackModel = modeloSolicitado === "gemini-2.5-flash-lite" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
+        console.warn(`Reintentando automáticamente con modelo alternativo: ${fallbackModel}`);
+        facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, fallbackModel);
+      } else {
+        throw apiErr;
+      }
+    }
+
     const validacionAritmetica = validarAritmeticaFactura(facturaExtraida);
 
     return NextResponse.json(

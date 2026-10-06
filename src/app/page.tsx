@@ -5,6 +5,7 @@ import { ImageDropzone } from "@/components/ImageDropzone";
 import { ImageViewer } from "@/components/ImageViewer";
 import { FacturaForm } from "@/components/FacturaForm";
 import { FacturaParaguay } from "@/types/factura";
+import { MODELOS_DISPONIBLES } from "@/lib/gemini";
 import {
   Receipt,
   Sparkles,
@@ -12,6 +13,7 @@ import {
   RotateCcw,
   Zap,
   Info,
+  Cpu,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,19 +57,21 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [facturaData, setFacturaData] = useState<FacturaParaguay | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("gemini-2.5-flash");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStep, setLoadingStep] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleFileSelected = async (file: File) => {
-    setSelectedFile(file);
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
+  const procesarArchivo = async (file: File, modeloAUsar?: string) => {
+    const modelo = modeloAUsar || selectedModel;
     setIsLoading(true);
-    setLoadingStep("Leyendo archivo y conectando con Gemini Flash...");
+    setErrorMsg(null);
+    setLoadingStep(`Conectando con ${modelo}...`);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("model", modelo);
 
       setLoadingStep("Extrayendo campos fiscales de Paraguay (DNIT)...");
 
@@ -83,19 +87,33 @@ export default function Home() {
       }
 
       setFacturaData(data.factura);
+      setErrorMsg(null);
       toast.success("Factura analizada con éxito.");
     } catch (error) {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Error inesperado.";
-      toast.error(msg, {
-        description: msg.includes("GEMINI_API_KEY")
-          ? "Configura tu GEMINI_API_KEY en .env.local y reinicia el servidor dev."
-          : "Revisa la consola o la respuesta del servidor para más detalles.",
-        duration: 7000,
+      setErrorMsg(msg);
+      toast.error("Error en la lectura", {
+        description: msg,
+        duration: 8000,
       });
     } finally {
       setIsLoading(false);
       setLoadingStep("");
+    }
+  };
+
+  const handleFileSelected = (file: File) => {
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    procesarArchivo(file);
+  };
+
+  const handleReprocesar = () => {
+    if (selectedFile) {
+      toast.info(`Reprocesando con ${selectedModel}...`);
+      procesarArchivo(selectedFile, selectedModel);
     }
   };
 
@@ -106,6 +124,7 @@ export default function Home() {
     setSelectedFile(null);
     setPreviewUrl(null);
     setFacturaData(null);
+    setErrorMsg(null);
     setIsLoading(false);
     toast.info("Espacio de trabajo reiniciado.");
   };
@@ -118,7 +137,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 selection:bg-emerald-500/30 selection:text-emerald-200">
       {/* Barra superior de navegación y estado */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-3.5 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md">
+      <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-950 shadow-md shadow-emerald-500/20">
             <Receipt className="w-5 h-5 font-bold" />
@@ -129,7 +148,7 @@ export default function Home() {
                 Factugrafía
               </h1>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <Sparkles className="w-3 h-3" /> Gemini Flash
+                <Sparkles className="w-3 h-3" /> IA DNIT
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
@@ -138,8 +157,31 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Acciones de la barra */}
-        <div className="flex items-center gap-2">
+        {/* Selector de Modelos y Acciones */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Selector interactivo de modelos */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-xl">
+            <Cpu className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <label htmlFor="select-modelo-ia" className="text-[11px] text-slate-400 hidden md:inline">
+              Modelo:
+            </label>
+            <select
+              id="select-modelo-ia"
+              value={selectedModel}
+              onChange={(e) => {
+                setSelectedModel(e.target.value);
+                toast.info(`Cambiado a ${e.target.value}`);
+              }}
+              className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer pr-1"
+            >
+              {MODELOS_DISPONIBLES.map((m) => (
+                <option key={m.id} value={m.id} className="bg-slate-900 text-slate-200">
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {!facturaData && !selectedFile && (
             <button
               type="button"
@@ -256,6 +298,40 @@ export default function Home() {
                 factura={facturaData}
                 onChange={setFacturaData}
               />
+            ) : errorMsg && selectedFile ? (
+              // Estado de Error con botón para Reprocesar
+              <div
+                id="estado-error"
+                className="flex flex-col items-center justify-center p-8 bg-rose-950/20 rounded-2xl border border-rose-500/40 min-h-[420px] text-center"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4">
+                  <RotateCcw className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-bold text-white mb-2">
+                  No se pudo completar la lectura
+                </h3>
+                <p className="text-xs text-rose-200/90 font-mono max-w-md mb-6 leading-relaxed bg-rose-950/40 p-3 rounded-xl border border-rose-500/20 text-left overflow-x-auto">
+                  {errorMsg}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleReprocesar}
+                    id="btn-reprocesar-lectura"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Reprocesar Lectura ({selectedModel})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors"
+                  >
+                    Subir otro archivo
+                  </button>
+                </div>
+              </div>
             ) : (
               // Estado vacío inicial
               <div

@@ -8,90 +8,127 @@ export const FacturaParaguaySchema = z.object({
   // Emisor
   emisor_nombre: z
     .string()
+    .nullish()
+    .transform((val) => val ?? "")
     .describe("Nombre o razón social del emisor de la factura"),
   emisor_ruc: z
     .string()
+    .nullish()
+    .transform((val) => val ?? "")
     .describe("RUC del emisor con dígito verificador, ej. 80012345-6 o 1234567-8"),
   emisor_direccion: z
     .string()
-    .nullable()
-    .optional()
+    .nullish()
+    .transform((val) => val ?? "")
     .describe("Dirección del local o casa matriz"),
 
   // Datos del Comprobante
   timbrado: z
     .string()
-    .nullable()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("Número de timbrado de 8 dígitos numéricos"),
   fecha_inicio_vigencia: z
     .string()
-    .nullable()
-    .optional()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("Fecha de inicio de vigencia del timbrado (YYYY-MM-DD)"),
   fecha_vigencia_timbrado: z
     .string()
-    .nullable()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("Fecha de fin o vencimiento del timbrado (YYYY-MM-DD)"),
   numero_factura: z
     .string()
+    .nullish()
+    .transform((val) => val ?? "001-001-0000000")
     .describe("Número de factura completo en formato XXX-XXX-XXXXXXX (ej. 001-001-0001234)"),
   tipo_comprobante: z
-    .enum(["FACTURA", "AUTOFACTURA", "TICKET_FACTURA", "OTRO"])
+    .string()
+    .nullish()
+    .transform((val) => {
+      const v = (val || "").toUpperCase();
+      if (v.includes("AUTO")) return "AUTOFACTURA";
+      if (v.includes("TICKET")) return "TICKET_FACTURA";
+      return "FACTURA";
+    })
     .default("FACTURA")
     .describe("Tipo de comprobante de venta"),
   condicion_venta: z
-    .enum(["CONTADO", "CREDITO"])
+    .string()
+    .nullish()
+    .transform((val) => {
+      const v = (val || "").toUpperCase();
+      return v.includes("CRED") ? "CREDITO" : "CONTADO";
+    })
     .default("CONTADO")
     .describe("Condición de la venta"),
   fecha_emision: z
     .string()
+    .nullish()
+    .transform((val) => val ?? new Date().toISOString().split("T")[0])
     .describe("Fecha de emisión del comprobante (YYYY-MM-DD)"),
 
   // Receptor / Cliente
   receptor_nombre: z
     .string()
-    .nullable()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("Nombre o razón social del cliente o comprador"),
   receptor_ruc: z
     .string()
-    .nullable()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("RUC o Cédula de Identidad del cliente (con o sin dígito verificador)"),
 
   // Totales y Desglose de Ventas (Normativa DNIT)
   moneda: z
-    .enum(["PYG", "USD"])
+    .string()
+    .nullish()
+    .transform((val) => {
+      const v = (val || "").toUpperCase();
+      return v.includes("USD") || v.includes("DOL") ? "USD" : "PYG";
+    })
     .default("PYG")
     .describe("Moneda de la transacción: PYG (Guaraníes) o USD (Dólares)"),
   total_exentas: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Subtotal de ventas en columna Exentas"),
   total_gravadas_5: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Subtotal de ventas gravadas al 5% (incluye el IVA 5%)"),
   total_gravadas_10: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Subtotal de ventas gravadas al 10% (incluye el IVA 10%)"),
 
   // Liquidación del IVA (Campos al pie de la factura)
   liquidacion_iva_5: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Liquidación del IVA 5% (calculado o impreso: gravadas 5% dividido 21)"),
   liquidacion_iva_10: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Liquidación del IVA 10% (calculado o impreso: gravadas 10% dividido 11)"),
   total_iva: z
-    .number()
-    .default(0)
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Total del IVA liquidado (IVA 5% + IVA 10%)"),
 
   // Total General
   total_general: z
-    .number()
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val !== undefined && val !== null ? Number(String(val).replace(/[^0-9.-]+/g, "")) || 0 : 0))
     .describe("Monto total general a pagar (Exentas + Gravadas 5% + Gravadas 10%)"),
 
   // Ítems y líneas de detalle
@@ -119,12 +156,20 @@ export const FacturaParaguaySchema = z.object({
 
   // Auditoría y Confianza de Lectura
   confianza_lectura: z
-    .enum(["ALTA", "MEDIA", "BAJA"])
+    .string()
+    .nullish()
+    .transform((val) => {
+      const v = (val || "").toUpperCase();
+      if (v.includes("BAJ") || v.includes("LOW")) return "BAJA";
+      if (v.includes("MED")) return "MEDIA";
+      return "ALTA";
+    })
+    .default("MEDIA")
     .describe("Nivel de legibilidad y precisión detectado por la IA"),
   observaciones: z
     .string()
-    .nullable()
-    .optional()
+    .nullish()
+    .transform((val) => val ?? null)
     .describe("Observaciones o advertencias sobre campos borrosos, arrugados o cortados"),
 });
 

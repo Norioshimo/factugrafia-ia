@@ -35,19 +35,52 @@ REGLAS TRIBUTARIAS CRÍTICAS DE PARAGUAY:
 9. CDC (Facturación Electrónica KuDE): Si es una factura electrónica (KuDE / e-Kuatia), busca el Código Digital de Control (CDC) de 44 dígitos numéricos ubicado usualmente cerca del código QR o en el encabezado.
 10. Confianza: Evalúa la legibilidad general como 'ALTA', 'MEDIA' o 'BAJA'. Si algún sector está roto, borroso o doblado, explícalo brevemente en 'observaciones'.
 
-DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO QUE CUMPLA CON LA ESTRUCTURA SOLICITADA. No incluyas bloques markdown con comillas invertidas extra si es posible, responde directamente el JSON.
+DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO QUE INCLUYA SIEMPRE ESTAS CLAVES EXACTAS (usa null o cadenas vacías si no están presentes, NUNCA omitas las claves):
+{
+  "emisor_nombre": "string o null",
+  "emisor_ruc": "string o null",
+  "emisor_direccion": "string o null",
+  "timbrado": "string o null",
+  "fecha_inicio_vigencia": "string o null",
+  "fecha_vigencia_timbrado": "string o null",
+  "numero_factura": "001-001-0001234",
+  "tipo_comprobante": "FACTURA",
+  "condicion_venta": "CONTADO",
+  "fecha_emision": "YYYY-MM-DD",
+  "receptor_nombre": "string o null",
+  "receptor_ruc": "string o null",
+  "moneda": "PYG",
+  "total_exentas": 0,
+  "total_gravadas_5": 0,
+  "total_gravadas_10": 0,
+  "liquidacion_iva_5": 0,
+  "liquidacion_iva_10": 0,
+  "total_iva": 0,
+  "total_general": 0,
+  "items": [],
+  "cdc": "string o null",
+  "confianza_lectura": "ALTA",
+  "observaciones": "string o null"
+}
 `;
+
+export const MODELOS_DISPONIBLES = [
+  { id: "gemini-2.5-flash", nombre: "Gemini 2.5 Flash (Recomendado)", descripcion: "Estable y rápido" },
+  { id: "gemini-2.5-flash-lite", nombre: "Gemini 2.5 Flash-Lite (Ultrarrápido)", descripcion: "Menor latencia y alta cuota" },
+  { id: "gemini-3.5-flash", nombre: "Gemini 3.5 Flash", descripcion: "Generación avanzada" },
+  { id: "gemini-3.8-flash", nombre: "Gemini 3.8 Flash", descripcion: "Última generación" },
+  { id: "gemini-2.5-pro", nombre: "Gemini 2.5 Pro (Máxima Precisión)", descripcion: "Para fotos complejas o arrugadas" },
+];
 
 export async function analizarFacturaConGemini(
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  modeloSeleccionado?: string
 ): Promise<FacturaParaguay> {
   const ai = getGeminiClient();
   const base64Data = buffer.toString("base64");
 
-  // Utilizamos gemini-2.5-flash (el modelo más reciente, multimodal y veloz)
-  // con fallback a gemini-2.0-flash si el entorno lo requiere.
-  const modelo = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const modelo = modeloSeleccionado || process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   const response = await ai.models.generateContent({
     model: modelo,
