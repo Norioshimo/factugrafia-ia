@@ -65,11 +65,9 @@ DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO QUE INCLUYA SIEMPRE ES
 `;
 
 export const MODELOS_DISPONIBLES = [
-  { id: "gemini-2.5-flash", nombre: "Gemini 2.5 Flash (Recomendado)", descripcion: "Estable y rápido" },
-  { id: "gemini-2.5-flash-lite", nombre: "Gemini 2.5 Flash-Lite (Ultrarrápido)", descripcion: "Menor latencia y alta cuota" },
-  { id: "gemini-3.5-flash", nombre: "Gemini 3.5 Flash", descripcion: "Generación avanzada" },
-  { id: "gemini-3.8-flash", nombre: "Gemini 3.8 Flash", descripcion: "Última generación" },
-  { id: "gemini-2.5-pro", nombre: "Gemini 2.5 Pro (Máxima Precisión)", descripcion: "Para fotos complejas o arrugadas" },
+  { id: "gemini-3.5-flash", nombre: "Gemini 3.5 Flash (Recomendado)", descripcion: "Rápido y máxima precisión" },
+  { id: "gemini-3.5-flash-lite", nombre: "Gemini 3.5 Flash-Lite (Ultrarrápido)", descripcion: "Menor latencia y alta cuota" },
+  { id: "gemini-3.8-flash", nombre: "Gemini 3.8 Flash", descripcion: "Última generación multimodal" },
 ];
 
 export async function analizarFacturaConGemini(
@@ -80,7 +78,11 @@ export async function analizarFacturaConGemini(
   const ai = getGeminiClient();
   const base64Data = buffer.toString("base64");
 
-  const modelo = modeloSeleccionado || process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  let modelo = modeloSeleccionado || process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  // Si se solicita un modelo obsoleto (como gemini-2.5 o gemini-1.5), migrar automáticamente
+  if (modelo.includes("2.5") || modelo.includes("1.5") || modelo.includes("2.0")) {
+    modelo = modelo.includes("lite") ? "gemini-3.5-flash-lite" : "gemini-3.5-flash";
+  }
 
   const response = await ai.models.generateContent({
     model: modelo,

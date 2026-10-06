@@ -148,10 +148,19 @@ export async function POST(request: NextRequest) {
     try {
       facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, modeloSolicitado);
     } catch (apiErr: any) {
-      // Si el modelo da 503 por alta demanda o 404, reintentar automáticamente con gemini-2.5-flash-lite o gemini-2.5-flash
+      // Si el modelo da 503 por alta demanda o 404, reintentar automáticamente con gemini-3.5-flash-lite o gemini-3.5-flash
       const errorMsg = apiErr?.message || "";
-      if (errorMsg.includes("503") || errorMsg.includes("UNAVAILABLE") || errorMsg.includes("high demand") || errorMsg.includes("404")) {
-        const fallbackModel = modeloSolicitado === "gemini-2.5-flash-lite" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
+      if (
+        errorMsg.includes("503") ||
+        errorMsg.includes("UNAVAILABLE") ||
+        errorMsg.includes("high demand") ||
+        errorMsg.includes("404") ||
+        errorMsg.includes("NOT_FOUND")
+      ) {
+        const fallbackModel =
+          modeloSolicitado === "gemini-3.5-flash-lite"
+            ? "gemini-3.5-flash"
+            : "gemini-3.5-flash-lite";
         console.warn(`Reintentando automáticamente con modelo alternativo: ${fallbackModel}`);
         facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, fallbackModel);
       } else {
