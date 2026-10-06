@@ -32,7 +32,11 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Verificación opcional de clave de API para integraciones externas
     const apiSecretEsperado = process.env.FACTUGRAFIA_API_SECRET;
-    if (apiSecretEsperado) {
+    const secFetchSite = request.headers.get("sec-fetch-site");
+    const isSameOrigin = secFetchSite === "same-origin" || !request.headers.get("origin");
+
+    // Si viene de un cliente externo (Cross-site, cors o herramientas sin origen local) y hay secret configurado:
+    if (apiSecretEsperado && !isSameOrigin) {
       const apiKeyRecibida =
         request.headers.get("x-api-key") ||
         request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");

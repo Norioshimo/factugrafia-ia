@@ -1,6 +1,6 @@
 # 🧾 Factugrafía - Lectura de Facturas con IA (Paraguay DNIT)
 
-Sistema moderno Full-Stack desarrollado con **Next.js**, **Bun**, **Tailwind CSS** y **Google Gemini Flash** para la extracción automatizada y auditoría interactiva (Human-in-the-Loop) de comprobantes fiscales de la República del Paraguay (DNIT / Marangatu / e-Kuatia).
+Sistema moderno Full-Stack desarrollado por **[Norio](https://norioportfolio.xyz/)** con **Next.js**, **Bun**, **Tailwind CSS** y **Google Gemini Flash** para la extracción automatizada y auditoría interactiva (Human-in-the-Loop) de comprobantes fiscales de la República del Paraguay (DNIT / Marangatu / e-Kuatia).
 
 Soporta fotos tomadas con el celular, tickets térmicos arrugados y facturas electrónicas oficiales en formato PDF (KuDE).
 
@@ -132,6 +132,14 @@ factugrafia/
 ├── .env.local                      # Claves locales privadas (ignorado en git)
 └── package.json
 ```
+
+---
+
+## 👨‍💻 Autor y Desarrollo
+
+Desarrollado con dedicación por **[Norio](https://norioportfolio.xyz/)**.
+
+🌐 Portafolio: [https://norioportfolio.xyz/](https://norioportfolio.xyz/)
 
 ---
 

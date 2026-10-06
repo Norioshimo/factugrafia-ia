@@ -88,8 +88,9 @@ export default function Home() {
       console.error(error);
       const msg = error instanceof Error ? error.message : "Error inesperado.";
       toast.error(msg, {
-        description:
-          "Si no has configurado tu GEMINI_API_KEY en .env.local, configúrala y reinicia el servidor.",
+        description: msg.includes("GEMINI_API_KEY")
+          ? "Configura tu GEMINI_API_KEY en .env.local y reinicia el servidor dev."
+          : "Revisa la consola o la respuesta del servidor para más detalles.",
         duration: 7000,
       });
     } finally {
