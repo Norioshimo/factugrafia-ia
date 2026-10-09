@@ -14,9 +14,32 @@ function getGeminiClient(): GoogleGenAI {
 const SYSTEM_PROMPT = `
 Eres un experto auditor tributario y extractor de documentos fiscales especializado en la República del Paraguay (DNIT - Dirección Nacional de Ingresos Tributarios, Sistema Marangatu y Facturación Electrónica e-Kuatia / KuDE).
 
-Tu tarea es leer y extraer con máxima precisión todos los datos de la factura o ticket fiscal adjunto (imagen o PDF).
+Tu tarea primordial consta de dos pasos:
 
-REGLAS TRIBUTARIAS CRÍTICAS DE PARAGUAY:
+PASO 1 - CLASIFICACIÓN Y VERIFICACIÓN DE COMPROBANTE FISCAL:
+Determina en primer lugar si la imagen o PDF corresponde a un comprobante fiscal o factura válida (Factura preimpresa de Paraguay, Factura Electrónica e-Kuatia / KuDE, Ticket Factura, Autofactura, Boleta de Venta o Comprobante Fiscal con validez tributaria).
+
+SI EL DOCUMENTO NO ES UNA FACTURA O COMPROBANTE FISCAL:
+Ejemplos de imágenes o archivos que NO son facturas:
+- Fotos personales, personas, rostros/selfies, animales, paisajes, comida, objetos, memes, capturas de chat o redes sociales.
+- Cédulas de identidad (C.I.), pasaportes, licencias de conducir, tarjetas de crédito/débito.
+- Comprobantes de transferencias bancarias simples (SIPAP, extractos de cuenta, depósitos bancarios, vouchers de POS sin timbrado fiscal).
+- Contratos, cartas, currículums, notas no fiscales, documentos de texto genéricos.
+- Imágenes en blanco, completamente borrosas, oscuras o ilegibles.
+
+Si determinas que NO es una factura o comprobante fiscal:
+- "es_factura": false
+- "tipo_documento_detectado": "<TIPO>" (ejemplos: "FOTO_PERSONAL", "DOCUMENTO_IDENTIDAD", "COMPROBANTE_TRANSFERENCIA", "DOCUMENTO_NO_FISCAL", "IMAGEN_ILEGIBLE")
+- "motivo_no_factura": "<Explicación detallada y respetuosa en español indicando qué tipo de imagen/documento se detectó y por qué no es una factura fiscal de Paraguay>"
+- Para los demás campos fiscales pon null, cadenas vacías o 0 según corresponda.
+
+SI EL DOCUMENTO SÍ ES UNA FACTURA O COMPROBANTE FISCAL:
+- "es_factura": true
+- "tipo_documento_detectado": "FACTURA" (o "FACTURA_ELECTRONICA_KUDE", "TICKET_FACTURA", "AUTOFACTURA")
+- "motivo_no_factura": null
+- Procede al PASO 2 para extraer todos los datos.
+
+PASO 2 - REGLAS TRIBUTARIAS CRÍTICAS DE PARAGUAY:
 1. RUC: Suele tener el formato 'XXXXXXX-X' o '800XXXXX-X' con su dígito verificador. Extráelo completo.
 2. Timbrado: Es un número de 8 dígitos. Si no es legible o no existe, usa null.
 3. Número de Factura: Formato estándar de 3 bloques 'XXX-XXX-XXXXXXX' (Establecimiento de 3 dígitos, Punto de expedición de 3 dígitos, Secuencia de 7 dígitos). Ejemplo: 001-001-0012345. Si faltan ceros a la izquierda en la secuencia, completa a 7 dígitos.
@@ -37,6 +60,9 @@ REGLAS TRIBUTARIAS CRÍTICAS DE PARAGUAY:
 
 DEBES RESPONDER EXCLUSIVAMENTE CON UN OBJETO JSON VÁLIDO QUE INCLUYA SIEMPRE ESTAS CLAVES EXACTAS (usa null o cadenas vacías si no están presentes, NUNCA omitas las claves):
 {
+  "es_factura": true,
+  "tipo_documento_detectado": "FACTURA",
+  "motivo_no_factura": null,
   "emisor_nombre": "string o null",
   "emisor_ruc": "string o null",
   "emisor_direccion": "string o null",
@@ -97,7 +123,7 @@ export async function analizarFacturaConGemini(
             },
           },
           {
-            text: "Extrae todos los datos fiscales de este comprobante tributario de Paraguay siguiendo estrictamente el esquema JSON requerido.",
+            text: "Determina si este archivo es una factura o comprobante fiscal de Paraguay y extrae los datos correspondientes en formato JSON estricto.",
           },
         ],
       },
@@ -132,5 +158,18 @@ export async function analizarFacturaConGemini(
 
   // Validar y aplicar defaults con Zod
   const validado = FacturaParaguaySchema.parse(parsedRaw);
+
+  // Verificación heurística de seguridad: Si indicó es_factura = true pero carece totalmente de campos fiscales
+  const tieneEmisor = Boolean(validado.emisor_nombre && validado.emisor_nombre.trim().length > 1);
+  const tieneRuc = Boolean(validado.emisor_ruc && validado.emisor_ruc.trim().length > 3);
+  const tieneTimbrado = Boolean(validado.timbrado && validado.timbrado.trim().length > 4);
+  const tieneMonto = validado.total_general > 0 || validado.items.length > 0;
+
+  if (validado.es_factura && !tieneEmisor && !tieneRuc && !tieneTimbrado && !tieneMonto) {
+    validado.es_factura = false;
+    validado.tipo_documento_detectado = validado.tipo_documento_detectado === "FACTURA" ? "DOCUMENTO_NO_FISCAL" : validado.tipo_documento_detectado;
+    validado.motivo_no_factura = validado.motivo_no_factura || "No se detectaron datos fiscales mínimos (sin emisor, sin RUC, sin timbrado y sin montos).";
+  }
+
   return validado;
 }

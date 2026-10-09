@@ -11,46 +11,29 @@ import {
   Sparkles,
   FileSearch,
   RotateCcw,
-  Zap,
   Info,
   Cpu,
+  ShieldAlert,
+  FileX2,
+  AlertOctagon,
 } from "lucide-react";
 import { toast } from "sonner";
 
-// Factura de prueba de Paraguay para demostración rápida
-const FACTURA_EJEMPLO: FacturaParaguay = {
-  emisor_nombre: "BARCOS Y RODADOS S.A.",
-  emisor_ruc: "80023456-7",
-  emisor_direccion: "Avda. Mariscal López c/ San Martín, Asunción",
-  timbrado: "15984321",
-  fecha_inicio_vigencia: "2024-01-01",
-  fecha_vigencia_timbrado: "2024-12-31",
-  numero_factura: "001-002-0045612",
-  tipo_comprobante: "FACTURA",
-  condicion_venta: "CONTADO",
-  fecha_emision: "2024-05-15",
-  receptor_nombre: "JUAN PEREZ CARDOZO",
-  receptor_ruc: "4123567-8",
-  moneda: "PYG",
-  total_exentas: 0,
-  total_gravadas_5: 0,
-  total_gravadas_10: 250000,
-  liquidacion_iva_5: 0,
-  liquidacion_iva_10: 22727,
-  total_iva: 22727,
-  total_general: 250000,
-  items: [
-    {
-      cantidad: 1,
-      descripcion: "DIESEL PODIUM S10 (35.21 Lts)",
-      precio_unitario: 250000,
-      tipo_impuesto: "IVA_10",
-      subtotal: 250000,
-    },
-  ],
-  cdc: "0180023456700100200456122024051512345678901234",
-  confianza_lectura: "ALTA",
-  observaciones: "Comprobante verificado con éxito.",
+const formatTipoDetectado = (tipo?: string) => {
+  switch (tipo?.toUpperCase()) {
+    case "FOTO_PERSONAL":
+      return "Fotografía personal / No documental";
+    case "DOCUMENTO_IDENTIDAD":
+      return "Documento de Identidad (C.I. / Pasaporte)";
+    case "COMPROBANTE_TRANSFERENCIA":
+      return "Comprobante de Transferencia Bancaria (No fiscal)";
+    case "DOCUMENTO_NO_FISCAL":
+      return "Documento no tributario";
+    case "IMAGEN_ILEGIBLE":
+      return "Imagen ilegible o sin texto fiscal";
+    default:
+      return tipo || "Archivo no fiscal";
+  }
 };
 
 export default function Home() {
@@ -61,11 +44,16 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStep, setLoadingStep] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [rejectedInfo, setRejectedInfo] = useState<{
+    motivo: string;
+    tipo: string;
+  } | null>(null);
 
   const procesarArchivo = async (file: File, modeloAUsar?: string) => {
     const modelo = modeloAUsar || selectedModel;
     setIsLoading(true);
     setErrorMsg(null);
+    setRejectedInfo(null);
     setLoadingStep(`Conectando con ${modelo}...`);
 
     try {
@@ -73,7 +61,7 @@ export default function Home() {
       formData.append("file", file);
       formData.append("model", modelo);
 
-      setLoadingStep("Extrayendo campos fiscales de Paraguay (DNIT)...");
+      setLoadingStep("Verificando y extrayendo campos fiscales de Paraguay (DNIT)...");
 
       const response = await fetch("/api/analizar-factura", {
         method: "POST",
@@ -83,10 +71,31 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
+        // Comprobar si fue rechazado por no ser una factura
+        if (data.es_factura === false || data.motivo_no_factura) {
+          const motivoRechazo =
+            data.motivo_no_factura ||
+            data.error ||
+            "El archivo subido no corresponde a una factura o comprobante fiscal válido.";
+          const tipoDetectado = data.tipo_documento_detectado || "DOCUMENTO_NO_FISCAL";
+
+          setRejectedInfo({
+            motivo: motivoRechazo,
+            tipo: tipoDetectado,
+          });
+          setFacturaData(null);
+          toast.error("Documento rechazado", {
+            description: motivoRechazo,
+            duration: 8000,
+          });
+          return;
+        }
+
         throw new Error(data.error || "Error al procesar la factura.");
       }
 
       setFacturaData(data.factura);
+      setRejectedInfo(null);
       setErrorMsg(null);
       toast.success("Factura analizada con éxito.");
     } catch (error) {
@@ -105,6 +114,7 @@ export default function Home() {
 
   const handleFileSelected = (file: File) => {
     setSelectedFile(file);
+    setRejectedInfo(null);
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
     procesarArchivo(file);
@@ -112,6 +122,7 @@ export default function Home() {
 
   const handleReprocesar = () => {
     if (selectedFile) {
+      setRejectedInfo(null);
       toast.info(`Reprocesando con ${selectedModel}...`);
       procesarArchivo(selectedFile, selectedModel);
     }
@@ -124,14 +135,10 @@ export default function Home() {
     setSelectedFile(null);
     setPreviewUrl(null);
     setFacturaData(null);
+    setRejectedInfo(null);
     setErrorMsg(null);
     setIsLoading(false);
     toast.info("Espacio de trabajo reiniciado.");
-  };
-
-  const handleCargarEjemplo = () => {
-    setFacturaData(FACTURA_EJEMPLO);
-    toast.success("Datos fiscales de ejemplo cargados.");
   };
 
   return (
@@ -182,24 +189,12 @@ export default function Home() {
             </select>
           </div>
 
-          {!facturaData && !selectedFile && (
-            <button
-              type="button"
-              onClick={handleCargarEjemplo}
-              id="btn-cargar-ejemplo"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Ver Ejemplo</span>
-            </button>
-          )}
-
-          {(facturaData || selectedFile) && (
+          {(facturaData || selectedFile || rejectedInfo) && (
             <button
               type="button"
               onClick={handleClear}
               id="btn-reiniciar-todo"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
               <span>Nueva Factura</span>
@@ -298,6 +293,81 @@ export default function Home() {
                 factura={facturaData}
                 onChange={setFacturaData}
               />
+            ) : rejectedInfo && selectedFile ? (
+              // Estado de Rechazo: El archivo no es una factura tributaria
+              <div
+                id="estado-rechazado-no-factura"
+                className="flex flex-col items-center justify-center p-8 bg-gradient-to-b from-rose-950/40 via-slate-900/90 to-slate-950 rounded-2xl border-2 border-rose-500/50 min-h-[460px] text-center shadow-2xl shadow-rose-950/40 animate-in fade-in zoom-in-95 duration-300"
+              >
+                <div className="relative mb-5">
+                  <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shadow-inner">
+                    <ShieldAlert className="w-8 h-8" />
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 p-1 bg-slate-950 rounded-full border border-rose-500/40 text-rose-400">
+                    <FileX2 className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 mb-3">
+                  <AlertOctagon className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Documento Rechazado</span>
+                </div>
+
+                <h3 className="text-lg font-bold text-white mb-2">
+                  No corresponde a una factura fiscal
+                </h3>
+
+                <p className="text-xs text-slate-300 max-w-md mb-4 leading-relaxed">
+                  El sistema analizó el archivo adjunto y determinó que{" "}
+                  <strong className="text-rose-300">no es una factura o comprobante tributario</strong> de Paraguay.
+                </p>
+
+                {/* Caja con el motivo y tipo detectado */}
+                <div className="w-full max-w-md bg-slate-950/90 border border-rose-500/30 rounded-xl p-4 text-left mb-5 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 pb-1.5 border-b border-slate-800">
+                    <span>CLASIFICACIÓN DETECTADA:</span>
+                    <span className="text-rose-300 font-mono font-bold">
+                      {formatTipoDetectado(rejectedInfo.tipo)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-200/90 leading-relaxed font-sans">
+                    {rejectedInfo.motivo}
+                  </p>
+                </div>
+
+                {/* Guía de comprobantes aceptados */}
+                <div className="w-full max-w-md bg-slate-900/60 border border-slate-800 rounded-xl p-3.5 text-left mb-6 text-[11px] text-slate-400 space-y-1.5">
+                  <p className="font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-emerald-400" /> Comprobantes admitidos en Factugrafía:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1 text-[11px]">
+                    <li>Facturas preimpresas tradicionales (con Timbrado de 8 dígitos y RUC).</li>
+                    <li>Facturas Electrónicas KuDE (e-Kuatia con CDC de 44 dígitos).</li>
+                    <li>Tickets o Boletas de venta fiscales válidas de Paraguay.</li>
+                  </ul>
+                </div>
+
+                {/* Acciones */}
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    id="btn-subir-otra-factura"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-lg shadow-emerald-600/20 cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Subir otra factura</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReprocesar}
+                    id="btn-forzar-reprocesar"
+                    className="px-4 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Reintentar lectura ({selectedModel})
+                  </button>
+                </div>
+              </div>
             ) : errorMsg && selectedFile ? (
               // Estado de Error con botón para Reprocesar
               <div
@@ -344,19 +414,11 @@ export default function Home() {
                 <h3 className="text-base font-semibold text-slate-200 mb-1">
                   Ningún comprobante cargado
                 </h3>
-                <p className="text-xs text-slate-400 max-w-sm mb-6 leading-relaxed">
+                <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
                   Arrastra una factura en la columna izquierda o presiona{" "}
                   <kbd className="font-mono bg-slate-800 px-1 py-0.5 rounded text-[10px] text-slate-300">Ctrl+V</kbd>{" "}
                   para comenzar la lectura con inteligencia artificial.
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCargarEjemplo}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl transition-all shadow-sm"
-                >
-                  <Zap className="w-4 h-4 text-emerald-400" />
-                  <span>Probar con datos de ejemplo</span>
-                </button>
               </div>
             )}
           </div>

@@ -13,83 +13,23 @@ import {
   Building2,
   User,
   Calculator,
-  ListPlus,
-  Trash2,
+  ListFilter,
   QrCode,
   Sparkles,
-  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface FacturaFormProps {
   factura: FacturaParaguay;
-  onChange: (factura: FacturaParaguay) => void;
+  onChange?: (factura: FacturaParaguay) => void;
   isLoading?: boolean;
 }
 
-export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) {
+export function FacturaForm({ factura }: FacturaFormProps) {
   // Validación aritmética en tiempo real
   const validacion = useMemo(() => {
     return validarAritmeticaFactura(factura);
   }, [factura]);
-
-  const updateField = <K extends keyof FacturaParaguay>(
-    key: K,
-    value: FacturaParaguay[K]
-  ) => {
-    onChange({
-      ...factura,
-      [key]: value,
-    });
-  };
-
-  const updateItem = (
-    index: number,
-    field: "descripcion" | "cantidad" | "precio_unitario" | "tipo_impuesto" | "subtotal",
-    value: string | number
-  ) => {
-    const nuevosItems = [...(factura.items || [])];
-    const itemActual = { ...nuevosItems[index] };
-
-    if (field === "cantidad") {
-      itemActual.cantidad = Number(value) || 0;
-      itemActual.subtotal = itemActual.cantidad * itemActual.precio_unitario;
-    } else if (field === "precio_unitario") {
-      itemActual.precio_unitario = Number(value) || 0;
-      itemActual.subtotal = itemActual.cantidad * itemActual.precio_unitario;
-    } else if (field === "subtotal") {
-      itemActual.subtotal = Number(value) || 0;
-    } else if (field === "tipo_impuesto") {
-      itemActual.tipo_impuesto = value as "EXENTA" | "IVA_5" | "IVA_10";
-    } else {
-      itemActual.descripcion = String(value);
-    }
-
-    nuevosItems[index] = itemActual;
-    onChange({
-      ...factura,
-      items: nuevosItems,
-    });
-  };
-
-  const addItem = () => {
-    const nuevosItems = [
-      ...(factura.items || []),
-      {
-        cantidad: 1,
-        descripcion: "Nuevo ítem",
-        precio_unitario: 0,
-        tipo_impuesto: "IVA_10" as const,
-        subtotal: 0,
-      },
-    ];
-    onChange({ ...factura, items: nuevosItems });
-  };
-
-  const removeItem = (index: number) => {
-    const nuevosItems = (factura.items || []).filter((_, i) => i !== index);
-    onChange({ ...factura, items: nuevosItems });
-  };
 
   const handleCopiarJson = () => {
     navigator.clipboard.writeText(JSON.stringify(factura, null, 2));
@@ -146,10 +86,10 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
         <div className="flex items-center gap-2.5 flex-wrap">
           {badgeConfianza()}
           <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-            {factura.tipo_comprobante}
+            {factura.tipo_comprobante || "FACTURA"}
           </span>
           <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-            {factura.condicion_venta}
+            {factura.condicion_venta || "CONTADO"}
           </span>
         </div>
 
@@ -158,7 +98,7 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
             type="button"
             onClick={handleCopiarJson}
             id="btn-copiar-json"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-colors cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5 text-emerald-400" />
             <span>Copiar JSON</span>
@@ -167,7 +107,7 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
             type="button"
             onClick={handleDescargarJson}
             id="btn-descargar-json"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-lg transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Descargar</span>
@@ -202,7 +142,7 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
                 {validacion.sumaSubtotales.toLocaleString("es-PY")}{" "}
                 {factura.moneda}
               </strong>{" "}
-              | Total General declarado:{" "}
+              | Total General extraído:{" "}
               <strong className="text-white">
                 {Number(factura.total_general).toLocaleString("es-PY")}{" "}
                 {factura.moneda}
@@ -228,83 +168,80 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               Nombre / Razón Social Emisor
-            </label>
+            </span>
             <input
               type="text"
               id="input-emisor-nombre"
-              value={factura.emisor_nombre || ""}
-              onChange={(e) => updateField("emisor_nombre", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-medium"
+              readOnly
+              value={factura.emisor_nombre || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-100 font-medium cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               RUC del Emisor
-            </label>
+            </span>
             <input
               type="text"
               id="input-emisor-ruc"
-              value={factura.emisor_ruc || ""}
-              onChange={(e) => updateField("emisor_ruc", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
-              placeholder="Ej: 80012345-6"
+              readOnly
+              value={factura.emisor_ruc || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-emerald-400 font-mono font-semibold cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               N° de Timbrado
-            </label>
+            </span>
             <input
               type="text"
               id="input-timbrado"
-              value={factura.timbrado || ""}
-              onChange={(e) => updateField("timbrado", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
-              placeholder="8 dígitos"
+              readOnly
+              value={factura.timbrado || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 font-mono cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               N° de Factura
-            </label>
+            </span>
             <input
               type="text"
               id="input-numero-factura"
-              value={factura.numero_factura || ""}
-              onChange={(e) => updateField("numero_factura", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono font-semibold"
-              placeholder="001-001-0012345"
+              readOnly
+              value={factura.numero_factura || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-white font-mono font-bold cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               Fecha de Emisión
-            </label>
+            </span>
             <input
-              type="date"
+              type="text"
               id="input-fecha-emision"
-              value={factura.fecha_emision || ""}
-              onChange={(e) => updateField("fecha_emision", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+              readOnly
+              value={factura.fecha_emision || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 font-mono cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               Vencimiento / Vigencia Timbrado
-            </label>
+            </span>
             <input
-              type="date"
+              type="text"
               id="input-fecha-vigencia"
-              value={factura.fecha_vigencia_timbrado || ""}
-              onChange={(e) => updateField("fecha_vigencia_timbrado", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+              readOnly
+              value={factura.fecha_vigencia_timbrado || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 font-mono cursor-default focus:outline-none select-all"
             />
           </div>
         </div>
@@ -319,28 +256,28 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               Nombre o Razón Social Cliente
-            </label>
+            </span>
             <input
               type="text"
               id="input-receptor-nombre"
-              value={factura.receptor_nombre || ""}
-              onChange={(e) => updateField("receptor_nombre", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+              readOnly
+              value={factura.receptor_nombre || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 cursor-default focus:outline-none select-all"
             />
           </div>
 
           <div>
-            <label className="block text-slate-400 font-medium mb-1">
+            <span className="block text-slate-400 font-medium mb-1">
               RUC o Cédula de Identidad
-            </label>
+            </span>
             <input
               type="text"
               id="input-receptor-ruc"
-              value={factura.receptor_ruc || ""}
-              onChange={(e) => updateField("receptor_ruc", e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500 font-mono"
+              readOnly
+              value={factura.receptor_ruc || "-"}
+              className="w-full px-3 py-2 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 font-mono cursor-default focus:outline-none select-all"
             />
           </div>
         </div>
@@ -354,97 +291,68 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
             <span>Desglose de Ventas y Liquidación de IVA</span>
           </div>
 
-          {/* Selector de Moneda */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={factura.moneda}
-              onChange={(e) => updateField("moneda", e.target.value as "PYG" | "USD")}
-              className="bg-slate-950 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs font-bold"
-            >
-              <option value="PYG">PYG (Guaraníes)</option>
-              <option value="USD">USD (Dólares)</option>
-            </select>
+          {/* Indicador de Moneda */}
+          <div className="px-2.5 py-1 bg-slate-950 border border-slate-800 text-emerald-400 rounded-lg text-xs font-bold font-mono">
+            {factura.moneda || "PYG"}
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <label className="block text-slate-400 font-medium mb-1">
+          <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/80">
+            <span className="block text-slate-400 font-medium mb-1">
               Total Ventas Exentas
-            </label>
-            <input
-              type="number"
-              id="input-total-exentas"
-              value={factura.total_exentas}
-              onChange={(e) => updateField("total_exentas", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-100 font-mono font-semibold text-sm focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-100 font-mono font-bold text-sm select-all">
+              {Number(factura.total_exentas || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
 
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <label className="block text-slate-400 font-medium mb-1">
+          <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/80">
+            <span className="block text-slate-400 font-medium mb-1">
               Total Gravadas 5% (con IVA)
-            </label>
-            <input
-              type="number"
-              id="input-total-gravadas-5"
-              value={factura.total_gravadas_5}
-              onChange={(e) => updateField("total_gravadas_5", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-100 font-mono font-semibold text-sm focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-100 font-mono font-bold text-sm select-all">
+              {Number(factura.total_gravadas_5 || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
 
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <label className="block text-slate-400 font-medium mb-1">
+          <div className="p-3 bg-slate-950/70 rounded-xl border border-slate-800/80">
+            <span className="block text-slate-400 font-medium mb-1">
               Total Gravadas 10% (con IVA)
-            </label>
-            <input
-              type="number"
-              id="input-total-gravadas-10"
-              value={factura.total_gravadas_10}
-              onChange={(e) => updateField("total_gravadas_10", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-100 font-mono font-semibold text-sm focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-100 font-mono font-bold text-sm select-all">
+              {Number(factura.total_gravadas_10 || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
         </div>
 
         {/* Liquidación de IVA */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/60">
-            <label className="block text-slate-400 text-[11px] mb-0.5">
+          <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60">
+            <span className="block text-slate-400 text-[11px] mb-0.5">
               Liq. IVA 5% (Base 21)
-            </label>
-            <input
-              type="number"
-              value={factura.liquidacion_iva_5}
-              onChange={(e) => updateField("liquidacion_iva_5", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-300 font-mono text-xs focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-300 font-mono text-xs select-all">
+              {Number(factura.liquidacion_iva_5 || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
 
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/60">
-            <label className="block text-slate-400 text-[11px] mb-0.5">
+          <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60">
+            <span className="block text-slate-400 text-[11px] mb-0.5">
               Liq. IVA 10% (Base 11)
-            </label>
-            <input
-              type="number"
-              value={factura.liquidacion_iva_10}
-              onChange={(e) => updateField("liquidacion_iva_10", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-300 font-mono text-xs focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-300 font-mono text-xs select-all">
+              {Number(factura.liquidacion_iva_10 || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
 
-          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/60">
-            <label className="block text-slate-400 text-[11px] mb-0.5">
+          <div className="p-3 bg-slate-950/50 rounded-xl border border-slate-800/60">
+            <span className="block text-slate-400 text-[11px] mb-0.5">
               Total IVA Liquidado
-            </label>
-            <input
-              type="number"
-              value={factura.total_iva}
-              onChange={(e) => updateField("total_iva", Number(e.target.value) || 0)}
-              className="w-full bg-transparent text-slate-300 font-mono text-xs focus:outline-none"
-            />
+            </span>
+            <span className="block text-slate-300 font-mono text-xs select-all">
+              {Number(factura.total_iva || 0).toLocaleString("es-PY")} {factura.moneda}
+            </span>
           </div>
         </div>
 
@@ -452,20 +360,16 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
         <div className="p-4 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-950 rounded-xl border border-emerald-500/30 flex items-center justify-between">
           <div>
             <span className="text-xs uppercase tracking-wider text-emerald-400 font-bold block">
-              Total General a Pagar
+              Total General Extraído
             </span>
             <span className="text-xs text-slate-400">
-              Incluye todas las ventas gravadas y exentas
+              Monto total final del comprobante
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <input
-              type="number"
-              id="input-total-general"
-              value={factura.total_general}
-              onChange={(e) => updateField("total_general", Number(e.target.value) || 0)}
-              className="text-right bg-transparent text-2xl font-bold font-mono text-white focus:outline-none border-b border-emerald-500/40 max-w-[220px]"
-            />
+            <span className="text-2xl font-bold font-mono text-white select-all">
+              {Number(factura.total_general || 0).toLocaleString("es-PY")}
+            </span>
             <span className="text-sm font-bold text-emerald-400 font-mono">
               {factura.moneda}
             </span>
@@ -473,97 +377,59 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
         </div>
       </div>
 
-      {/* SECCIÓN 4: Detalle de Ítems */}
+      {/* SECCIÓN 4: Detalle de Ítems (Solo lectura) */}
       <div className="p-5 bg-slate-900/60 rounded-2xl border border-slate-800/80 space-y-4">
         <div className="flex items-center justify-between text-sm font-semibold text-slate-200 pb-2 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <ListPlus className="w-4 h-4 text-emerald-400" />
+            <ListFilter className="w-4 h-4 text-emerald-400" />
             <span>Detalle de Productos / Servicios ({factura.items?.length || 0})</span>
           </div>
-
-          <button
-            type="button"
-            onClick={addItem}
-            id="btn-agregar-item"
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg transition-colors"
-          >
-            + Agregar ítem
-          </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
-              <tr>
-                <th className="py-2.5 px-3">Cant.</th>
-                <th className="py-2.5 px-3">Descripción</th>
-                <th className="py-2.5 px-3 text-right">P. Unitario</th>
-                <th className="py-2.5 px-3">IVA</th>
-                <th className="py-2.5 px-3 text-right">Subtotal</th>
-                <th className="py-2.5 px-2 text-center"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {(factura.items || []).map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-950/40 transition-colors">
-                  <td className="py-2 px-3 w-16">
-                    <input
-                      type="number"
-                      value={item.cantidad}
-                      onChange={(e) => updateItem(idx, "cantidad", e.target.value)}
-                      className="w-full bg-transparent text-slate-100 font-mono focus:outline-none"
-                    />
-                  </td>
-                  <td className="py-2 px-3">
-                    <input
-                      type="text"
-                      value={item.descripcion}
-                      onChange={(e) => updateItem(idx, "descripcion", e.target.value)}
-                      className="w-full bg-transparent text-slate-200 focus:outline-none"
-                    />
-                  </td>
-                  <td className="py-2 px-3 text-right w-28">
-                    <input
-                      type="number"
-                      value={item.precio_unitario}
-                      onChange={(e) => updateItem(idx, "precio_unitario", e.target.value)}
-                      className="w-full bg-transparent text-slate-200 font-mono text-right focus:outline-none"
-                    />
-                  </td>
-                  <td className="py-2 px-3 w-24">
-                    <select
-                      value={item.tipo_impuesto}
-                      onChange={(e) => updateItem(idx, "tipo_impuesto", e.target.value)}
-                      className="bg-slate-950 text-slate-300 border border-slate-800 rounded px-1.5 py-0.5 text-[11px]"
-                    >
-                      <option value="IVA_10">10%</option>
-                      <option value="IVA_5">5%</option>
-                      <option value="EXENTA">Exenta</option>
-                    </select>
-                  </td>
-                  <td className="py-2 px-3 text-right w-28 font-mono font-medium text-slate-100">
-                    <input
-                      type="number"
-                      value={item.subtotal}
-                      onChange={(e) => updateItem(idx, "subtotal", e.target.value)}
-                      className="w-full bg-transparent text-slate-100 font-mono text-right focus:outline-none"
-                    />
-                  </td>
-                  <td className="py-2 px-2 text-center w-8">
-                    <button
-                      type="button"
-                      onClick={() => removeItem(idx)}
-                      className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                      title="Eliminar ítem"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
+        {(!factura.items || factura.items.length === 0) ? (
+          <p className="text-xs text-slate-400 italic py-2">No se desglosaron ítems individuales en este comprobante.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">Cant.</th>
+                  <th className="py-2.5 px-3">Descripción</th>
+                  <th className="py-2.5 px-3 text-right">P. Unitario</th>
+                  <th className="py-2.5 px-3 text-center">IVA</th>
+                  <th className="py-2.5 px-3 text-right">Subtotal</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {factura.items.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-950/40 transition-colors select-all">
+                    <td className="py-2 px-3 w-14 font-mono text-slate-300">
+                      {item.cantidad}
+                    </td>
+                    <td className="py-2 px-3 text-slate-200 font-medium">
+                      {item.descripcion}
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono text-slate-300">
+                      {Number(item.precio_unitario || 0).toLocaleString("es-PY")}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                        {item.tipo_impuesto === "IVA_10"
+                          ? "10%"
+                          : item.tipo_impuesto === "IVA_5"
+                          ? "5%"
+                          : "Exenta"}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-100">
+                      {Number(item.subtotal || 0).toLocaleString("es-PY")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* SECCIÓN 5: KuDE CDC & Observaciones */}
@@ -571,21 +437,21 @@ export function FacturaForm({ factura, onChange, isLoading }: FacturaFormProps) 
         <div className="p-5 bg-slate-900/60 rounded-2xl border border-slate-800/80 space-y-3">
           {factura.cdc && (
             <div>
-              <label className="block text-slate-400 text-xs font-medium mb-1">
+              <span className="block text-slate-400 text-xs font-medium mb-1">
                 Código Digital de Control (CDC) - e-Kuatia
-              </label>
+              </span>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   readOnly
                   value={factura.cdc}
-                  className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-slate-300 font-mono text-xs"
+                  className="flex-1 px-3 py-1.5 bg-slate-950/70 border border-slate-800 rounded-lg text-slate-300 font-mono text-xs cursor-default select-all"
                 />
                 <button
                   type="button"
                   onClick={handleCopiarCdc}
                   id="btn-copiar-cdc"
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <QrCode className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Copiar CDC</span>

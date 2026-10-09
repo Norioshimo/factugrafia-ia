@@ -168,11 +168,42 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Si el documento fue analizado pero NO es una factura fiscal
+    if (facturaExtraida.es_factura === false) {
+      return NextResponse.json(
+        {
+          success: false,
+          es_factura: false,
+          tipo_documento_detectado:
+            facturaExtraida.tipo_documento_detectado || "DOCUMENTO_NO_FISCAL",
+          motivo_no_factura:
+            facturaExtraida.motivo_no_factura ||
+            "El archivo subido no corresponde a una factura o comprobante fiscal válido de Paraguay.",
+          error:
+            facturaExtraida.motivo_no_factura ||
+            "El archivo subido no corresponde a una factura o comprobante fiscal válido.",
+          metadatos_archivo: {
+            nombre: file.name,
+            tamano_bytes: file.size,
+            tipo_mime: mimeType,
+          },
+        },
+        {
+          status: 422,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     const validacionAritmetica = validarAritmeticaFactura(facturaExtraida);
 
     return NextResponse.json(
       {
         success: true,
+        es_factura: true,
         factura: facturaExtraida,
         validacion_aritmética: validacionAritmetica,
         metadatos_archivo: {

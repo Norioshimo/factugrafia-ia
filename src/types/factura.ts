@@ -5,6 +5,25 @@ import { z } from "zod";
  * Soporta facturas preimpresas tradicionales y electrónicas KuDE.
  */
 export const FacturaParaguaySchema = z.object({
+  // Validación de Documento (Detección y rechazo de archivos no fiscales)
+  es_factura: z
+    .boolean()
+    .nullish()
+    .transform((val) => (val === false ? false : true))
+    .default(true)
+    .describe("Indica si el documento adjunto es efectivamente una factura o comprobante fiscal válido"),
+  tipo_documento_detectado: z
+    .string()
+    .nullish()
+    .transform((val) => val ?? "FACTURA")
+    .default("FACTURA")
+    .describe("Tipo de documento detectado en la imagen o PDF (ej: FACTURA, FOTO_PERSONAL, DOCUMENTO_IDENTIDAD, TRANSFERENCIA_BANCARIA, DOCUMENTO_NO_FISCAL)"),
+  motivo_no_factura: z
+    .string()
+    .nullish()
+    .transform((val) => val ?? null)
+    .describe("Si es_factura es false, motivo detallado por el cual se rechaza o descripción de lo detectado"),
+
   // Emisor
   emisor_nombre: z
     .string()
