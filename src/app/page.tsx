@@ -5,7 +5,7 @@ import { ImageDropzone } from "@/components/ImageDropzone";
 import { ImageViewer } from "@/components/ImageViewer";
 import { FacturaForm } from "@/components/FacturaForm";
 import { FacturaParaguay } from "@/types/factura";
-import { MODELOS_DISPONIBLES } from "@/lib/gemini";
+import { MODELOS_DISPONIBLES } from "@/lib/modelos";
 import {
   Receipt,
   Sparkles,
@@ -181,10 +181,18 @@ export default function Home() {
               }}
               className="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer pr-1"
             >
-              {MODELOS_DISPONIBLES.map((m) => (
-                <option key={m.id} value={m.id} className="bg-slate-900 text-slate-200">
-                  {m.nombre}
-                </option>
+              {(["gemini", "groq"] as const).map((prov) => (
+                <optgroup
+                  key={prov}
+                  label={prov === "gemini" ? "Google Gemini" : "Groq"}
+                  className="bg-slate-900 text-slate-400"
+                >
+                  {MODELOS_DISPONIBLES.filter((m) => m.proveedor === prov).map((m) => (
+                    <option key={m.id} value={m.id} className="bg-slate-900 text-slate-200">
+                      {m.nombre}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>

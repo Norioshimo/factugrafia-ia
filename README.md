@@ -1,6 +1,6 @@
 # 🧾 Factugrafía - Lectura de Facturas con IA (Paraguay DNIT)
 
-Sistema moderno Full-Stack desarrollado por **[Norio](https://norioportfolio.xyz/)** con **Next.js**, **Bun**, **Tailwind CSS** y **Google Gemini Flash** para la extracción automatizada y auditoría interactiva (Human-in-the-Loop) de comprobantes fiscales de la República del Paraguay (DNIT / Marangatu / e-Kuatia).
+Sistema moderno Full-Stack desarrollado por **[Norio](https://norioportfolio.xyz/)** con **Next.js**, **Bun**, **Tailwind CSS** y **Google Gemini Flash** y **Groq (Qwen 3.8 Vision)** para la extracción automatizada y auditoría interactiva (Human-in-the-Loop) de comprobantes fiscales de la República del Paraguay (DNIT / Marangatu / e-Kuatia).
 
 Soporta fotos tomadas con el celular, tickets térmicos arrugados y facturas electrónicas oficiales en formato PDF (KuDE).
 
@@ -15,6 +15,9 @@ Soporta fotos tomadas con el celular, tickets térmicos arrugados y facturas ele
   * Comprobación automática en tiempo real de la regla fiscal paraguaya:
     $$\text{Total General} = \text{Exentas} + \text{Gravadas 5\%} + \text{Gravadas 10\%}$$
   * Verificación de la liquidación del IVA (base 21 para el 5% y base 11 para el 10%).
+* **Múltiples proveedores de IA**:
+  * Selector de modelo en la cabecera: **Google Gemini** o **Groq** (Qwen 3.8 27B). Cada uno usa su propia clave en `.env`.
+  * Con Groq, los **PDF se convierten automáticamente a imagen** (primeras 5 páginas) antes de enviarse, ya que Groq solo procesa imágenes.
 * **Endpoint REST Externo Integrable**:
   * `/api/analizar-factura` acepta peticiones `multipart/form-data` con cabeceras **CORS** abiertas para ser consumido directamente desde ERPs, backends en Python/C#/PHP o aplicaciones móviles.
 * **Tipado Estricto con Zod**:
@@ -22,22 +25,36 @@ Soporta fotos tomadas con el celular, tickets térmicos arrugados y facturas ele
 
 ---
 
-## 🔑 Cómo Obtener la Clave Gratuita de Google Gemini
+## 🔑 Cómo Obtener las Claves de API (gratuitas)
 
-1. Ingresa a **[Google AI Studio](https://aistudio.google.com/)**.
+Necesitas al menos una de las dos claves, según los modelos que quieras usar.
+
+### Google Gemini → `GEMINI_API_KEY`
+
+1. Ingresa a **[Google AI Studio – API keys](https://aistudio.google.com/apikey)** (https://aistudio.google.com/).
 2. Inicia sesión con cualquier cuenta de Google.
-3. En el menú superior izquierdo, haz clic en el botón **"Get API key"** (Obtener clave de API).
-4. Haz clic en **"Create API key"** (puedes crearla en un proyecto nuevo o existente).
-5. Copia la clave generada (es gratuita y ofrece cuota mensual generosa con el modelo Gemini Flash).
-6. Crea tu archivo local `.env.local` en la raíz del proyecto:
+3. Haz clic en **"Create API key"** (puedes crearla en un proyecto nuevo o existente).
+4. Copia la clave generada (el nivel gratuito ofrece cuota generosa con los modelos Flash).
+
+### Groq → `GROQ_API_KEY`
+
+1. Ingresa a la **[consola de Groq](https://console.groq.com/)** y crea una cuenta o inicia sesión (Google, GitHub o correo).
+2. En el menú lateral entra a **"API Keys"** ([console.groq.com/keys](https://console.groq.com/keys)).
+3. Haz clic en **"Create API Key"**, asígnale un nombre (ej. `factugrafia`) y confirma.
+4. Copia la clave (empieza con `gsk_...`). **Solo se muestra una vez**; si la pierdes, crea otra.
+
+### Configurar el archivo `.env`
+
+1. Crea tu archivo `.env` en la raíz del proyecto a partir de la plantilla:
    ```bash
-   cp .env.example .env.local
+   cp .env.example .env
    ```
-7. Pega tu clave en `.env.local`:
+2. Pega tus claves:
    ```env
-   GEMINI_API_KEY=AIzaSy...tu_clave_aqui
+   GEMINI_API_KEY=AIzaSy...tu_clave_de_gemini
+   GROQ_API_KEY=gsk_...tu_clave_de_groq
    ```
-   *(Nota: Este archivo está ignorado en `.gitignore`, por lo que tus credenciales nunca se subirán a GitHub).*
+   *(Nota: `.env` está ignorado en `.gitignore`, por lo que tus credenciales nunca se subirán a GitHub. Reinicia `bun run dev` después de cambiarlo.)*
 
 ---
 
@@ -117,7 +134,7 @@ factugrafia/
 │   ├── app/
 │   │   ├── api/
 │   │   │   └── analizar-factura/
-│   │   │       └── route.ts        # Endpoint multipart con CORS y Gemini
+│   │   │       └── route.ts        # Endpoint multipart con CORS (Gemini / Groq)
 │   │   ├── layout.tsx              # Layout principal con Sonner (Toaster)
 │   │   └── page.tsx                # Estación de trabajo split-screen interactiva
 │   ├── components/
@@ -125,11 +142,16 @@ factugrafia/
 │   │   ├── ImageViewer.tsx         # Visor con zoom, pan, rotación y soporte PDF
 │   │   └── FacturaForm.tsx         # Formulario fiscal con validador DNIT
 │   ├── lib/
-│   │   └── gemini.ts               # Cliente oficial @google/genai
+│   │   ├── analizar.ts             # Selecciona proveedor (Gemini o Groq) según el modelo
+│   │   ├── gemini.ts               # Cliente oficial @google/genai
+│   │   ├── groq.ts                 # Cliente Groq (API compatible con OpenAI)
+│   │   ├── modelos.ts              # Catálogo de modelos y proveedores
+│   │   ├── pdf-a-imagenes.ts       # PDF → PNG para modelos que solo aceptan imágenes
+│   │   └── prompt.ts               # Prompt del sistema y validación de la respuesta
 │   └── types/
 │       └── factura.ts              # Esquema Zod y lógica de cálculo fiscal
 ├── .env.example                    # Plantilla de variables de entorno
-├── .env.local                      # Claves locales privadas (ignorado en git)
+├── .env                            # Claves locales privadas (ignorado en git)
 └── package.json
 ```
 

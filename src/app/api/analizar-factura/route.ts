@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analizarFacturaConGemini } from "@/lib/gemini";
+import { analizarFactura } from "@/lib/analizar";
+import { modeloFallback, proveedorDeModelo } from "@/lib/modelos";
 import { validarAritmeticaFactura } from "@/types/factura";
 
 // Configurar encabezados CORS para llamadas de otros proyectos o dominios
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Convertir a Buffer y llamar a Gemini
+    // 5. Convertir a Buffer y llamar al proveedor de IA (Gemini o Groq)
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -146,23 +147,22 @@ export async function POST(request: NextRequest) {
 
     let facturaExtraida;
     try {
-      facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, modeloSolicitado);
+      facturaExtraida = await analizarFactura(buffer, mimeType, modeloSolicitado);
     } catch (apiErr: any) {
-      // Si el modelo da 503 por alta demanda o 404, reintentar automáticamente con gemini-3.5-flash-lite o gemini-3.5-flash
+      // Si el modelo da 503 por alta demanda, 404 o 429 (límite de cuota), reintentar con otro modelo Gemini
       const errorMsg = apiErr?.message || "";
       if (
-        errorMsg.includes("503") ||
+        proveedorDeModelo(modeloSolicitado) === "gemini" &&
+        (errorMsg.includes("503") ||
         errorMsg.includes("UNAVAILABLE") ||
         errorMsg.includes("high demand") ||
         errorMsg.includes("404") ||
-        errorMsg.includes("NOT_FOUND")
+        errorMsg.includes("NOT_FOUND") ||
+        errorMsg.includes("429"))
       ) {
-        const fallbackModel =
-          modeloSolicitado === "gemini-3.5-flash-lite"
-            ? "gemini-3.5-flash"
-            : "gemini-3.5-flash-lite";
+        const fallbackModel = modeloFallback(modeloSolicitado);
         console.warn(`Reintentando automáticamente con modelo alternativo: ${fallbackModel}`);
-        facturaExtraida = await analizarFacturaConGemini(buffer, mimeType, fallbackModel);
+        facturaExtraida = await analizarFactura(buffer, mimeType, fallbackModel);
       } else {
         throw apiErr;
       }
